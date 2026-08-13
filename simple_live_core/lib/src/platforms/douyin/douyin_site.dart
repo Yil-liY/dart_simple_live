@@ -227,13 +227,21 @@ class DouyinSite implements LiveSite {
     // webRid是固定的，用户每次开播都是同一个webRid
     // webRid一般长度为11-12位，例如：416144012050
     // 这里简单进行判断，如果roomId长度小于15，则认为是webRid
-    var webRid = roomId;
+   var webRid = roomId;
     if (roomId.length > 16) {
+      // 【画质修复】优先走客户端接口 reflow/info，可拿到 uhd / origin（真原画 HEVC）全档
+      try {
+        var clientDetail = await getRoomDetailByRoomId(roomId);
+        if (clientDetail.status) {
+          return clientDetail;
+        }
+      } catch (e) {
+        CoreLog.w('客户端接口获取失败，回退网页接口: $e');
+      }
       webRid = await _getWebRid(roomId);
     }
     return await getRoomDetailByWebRid(webRid);
   }
-
   /// 非webRid转webRid
   Future<String> _getWebRid(String roomId) async {
     var baseUrl = "https://webcast.amemv.com/douyin/webcast/reflow/";
