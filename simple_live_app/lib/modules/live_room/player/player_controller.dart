@@ -52,12 +52,12 @@ mixin PlayerMixin {
       await pp.setProperty('ao', 'alsa');
     }
     // media_kit 仓库更新导致的问题，临时解决办法
-    if (Platform.isAndroid) {
+       if (Platform.isAndroid) {
       // 通过错误参数强制media_kit不seek, 解决了加载-pause-seek 在直播流上的开屏问题
       await pp.setProperty('force-seekable', 'yes');
-      // ===== 响度增强：音量上限放开到130（原100），增益 +6dB =====
-await pp.setProperty('volume-gain', 6);
-await pp.setProperty('volume-max', 130);
+      // ── 响度增强（自编译定制）：让 Slive 自带基础增益，效果接近抖音/B站等APP ──
+      await pp.setProperty('volume-gain', 6);   // +6dB 内置增益，觉得小可改 9
+      await pp.setProperty('volume-max', 130);  // 放开 mpv 软音量上限
     }
     // 低内存管理
     //
