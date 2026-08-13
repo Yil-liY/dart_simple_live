@@ -55,6 +55,9 @@ mixin PlayerMixin {
     if (Platform.isAndroid) {
       // 通过错误参数强制media_kit不seek, 解决了加载-pause-seek 在直播流上的开屏问题
       await pp.setProperty('force-seekable', 'yes');
+      // ===== 响度增强：音量上限放开到130（原100），增益 +6dB =====
+await pp.setProperty('volume-gain', 6);
+await pp.setProperty('volume-max', 130);
     }
     // 低内存管理
     //
