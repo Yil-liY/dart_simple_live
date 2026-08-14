@@ -1,13 +1,37 @@
 import 'dart:math' show pi;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show objectRuntimeType;
 import 'package:flutter/material.dart';
 
 enum DanmakuItemType { scroll, top, bottom, special }
 
+/// 弹幕内嵌表情占位
+/// [name] 为弹幕文本里的占位符（如 `[戴口罩]`）
+/// [uri] 为素材文件名（如 `daikouzhao.png`），用于 debug/映射
+/// [image] 为已解码好的表情图（原始像素）
+/// [targetWidth]/[targetHeight] 为期望在弹幕中显示的逻辑尺寸
+class DanmakuEmojiPlaceholder {
+  final String name;
+  final String uri;
+  final ui.Image image;
+  final double targetWidth;
+  final double targetHeight;
+  const DanmakuEmojiPlaceholder({
+    required this.name,
+    required this.uri,
+    required this.image,
+    required this.targetWidth,
+    required this.targetHeight,
+  });
+}
+
 class DanmakuContentItem<T> {
-  /// 弹幕文本
+  /// 弹幕文本（原生，可能包含 `[xx]` 表情占位符）
   final String text;
+
+  /// 弹幕内嵌表情列表，按在 text 中出现的顺序排列
+  final List<DanmakuEmojiPlaceholder>? emojis;
 
   /// 弹幕颜色
   Color color;
@@ -28,6 +52,7 @@ class DanmakuContentItem<T> {
 
   DanmakuContentItem(
     this.text, {
+    this.emojis,
     this.color = Colors.white,
     this.type = DanmakuItemType.scroll,
     this.selfSend = false,

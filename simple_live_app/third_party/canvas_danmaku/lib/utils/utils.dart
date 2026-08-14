@@ -28,12 +28,75 @@ abstract final class DmUtils {
     _selfSendPaint.strokeWidth = strokeWidth;
   }
 
+  /// 弹幕文本中的表情占位符，如 `[戴口罩]`（中文 display_name）
+  static final RegExp _emojiPhRe = RegExp(r'\[[^\[\]]{1,20}\]');
+
+  /// 过滤出与 text 中占位符严格一一对应的有效表情列表。
+  /// 仅当 text 里占位符数量恰好等于 emojis 数量时才启用表情嵌入，
+  /// 否则（存在无法匹配的表情）退回纯文本渲染，避免错位。
+  static List<DanmakuEmojiPlaceholder> _effectiveEmojis(
+      DanmakuContentItem content) {
+    final emojis = content.emojis;
+    if (emojis == null || emojis.isEmpty) return const [];
+    if (_emojiPhRe.allMatches(content.text).length != emojis.length) {
+      return const [];
+    }
+    return emojis;
+  }
+
+  /// 把 [text] 逐段写入 [builder]，将 `[XX]` 替换为表情占位矩形。
+  /// [textStyle] 应用于普通文本；[emojiStyle] 包裹占位矩形（通常不带描边/颜色）。
+  /// [emojiSize] 为表情期望显示高度（逻辑像素），宽度按图片原始宽高比等比缩放。
+  /// 返回实际写入的占位符数量。
+  static int _appendSegments(
+    ui.ParagraphBuilder builder,
+    String text,
+    List<DanmakuEmojiPlaceholder> emojis,
+    ui.TextStyle textStyle,
+    ui.TextStyle emojiStyle, {
+    required double emojiSize,
+  }) {
+    if (emojis.isEmpty) {
+      builder..pushStyle(textStyle)..addText(text);
+      return 0;
+    }
+    builder.pushStyle(textStyle);
+    var idx = 0;
+    var last = 0;
+    var count = 0;
+    for (final m in _emojiPhRe.allMatches(text)) {
+      if (m.start > last) {
+        builder.addText(text.substring(last, m.start));
+      }
+      final emoji = emojis[idx];
+      final srcW = emoji.image.width.toDouble();
+      final srcH = emoji.image.height.toDouble();
+      final aspect = (srcH <= 0) ? 1.0 : srcW / srcH;
+      builder
+        ..pushStyle(emojiStyle)
+        ..addPlaceholder(
+          emojiSize * aspect,
+          emojiSize,
+          alignment: PlaceholderAlignment.middle,
+        )
+        ..pop();
+      idx++;
+      count++;
+      last = m.end;
+    }
+    if (last < text.length) {
+      builder.addText(text.substring(last));
+    }
+    return count;
+  }
+
   static ui.Paragraph generateParagraph({
     required DanmakuContentItem content,
     required double fontSize,
     required int fontWeight,
     String? fontFamily,
   }) {
+    final emojis = _effectiveEmojis(content);
     final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
       textAlign: TextAlign.left,
       fontWeight: FontWeight.values[fontWeight],
@@ -53,10 +116,15 @@ abstract final class DmUtils {
         ..pop();
     }
 
-    builder
-      ..pushStyle(ui.TextStyle(
-          color: content.color, fontSize: fontSize, fontFamily: fontFamily))
-      ..addText(content.text);
+    _appendSegments(
+      builder,
+      content.text,
+      emojis,
+      ui.TextStyle(
+          color: content.color, fontSize: fontSize, fontFamily: fontFamily),
+      const ui.TextStyle(),
+      emojiSize: fontSize,
+    );
 
     return builder.build()
       ..layout(const ui.ParagraphConstraints(width: double.infinity));
@@ -81,6 +149,7 @@ abstract final class DmUtils {
 
     final rec = ui.PictureRecorder();
     final canvas = ui.Canvas(rec)..scale(devicePixelRatio);
+    final emojis = _effectiveEmojis(content);
 
     if (strokeWidth != 0) {
       final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
@@ -114,12 +183,18 @@ abstract final class DmUtils {
           ..pop();
       }
 
-      builder
-        ..pushStyle(ui.TextStyle(
+      // 文本 + 表情占位（表情区用透明 style，保证宽度对齐但描边不画出方框）
+      _appendSegments(
+        builder,
+        content.text,
+        emojis,
+        ui.TextStyle(
             fontSize: fontSize,
             foreground: strokePaint,
-            fontFamily: fontFamily))
-        ..addText(content.text);
+            fontFamily: fontFamily),
+        ui.TextStyle(fontSize: fontSize, color: Colors.transparent),
+        emojiSize: fontSize,
+      );
 
       final strokeParagraph = builder.build()
         ..layout(const ui.ParagraphConstraints(width: double.infinity));
@@ -129,6 +204,23 @@ abstract final class DmUtils {
     }
 
     canvas.drawParagraph(contentParagraph, offset);
+
+    // 按占位矩形嵌入表情图
+    if (emojis.isNotEmpty) {
+      final boxes = contentParagraph.getBoxesForPlaceholders();
+      final emojiPaint = (Paint()..filterQuality = FilterQuality.medium);
+      for (var i = 0; i < boxes.length && i < emojis.length; i++) {
+        final dst = boxes[i].toRect().shift(offset);
+        final emoji = emojis[i];
+        final src = Rect.fromLTWH(
+          0,
+          0,
+          emoji.image.width.toDouble(),
+          emoji.image.height.toDouble(),
+        );
+        canvas.drawImageRect(emoji.image, src, dst, emojiPaint);
+      }
+    }
 
     if (content.selfSend) {
       w += 4;

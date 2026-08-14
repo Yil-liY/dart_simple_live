@@ -52,7 +52,7 @@ dependencies:
   sticky_headers: ^0.3.0+2 # 吸顶
   lottie: ^3.3.2 # Lottie 动画
   canvas_danmaku:
-    path: third_party/canvas_danmaku # 弹幕库
+    path: third_party/canvas_danmaku # 弹幕库（已 vendored，支持表情）
 
   # 系统交互
   package_info_plus: ^8.3.1 # 包信息
@@ -167,6 +167,6 @@ flutter:
     - assets/icons/
     - assets/lotties/
     - assets/fonts/fonts-manifest.json
-    - shorebird.yaml
     - assets/douyin_emoji/emoji_map.json
     - assets/douyin_emoji/static/
+    - shorebird.yaml

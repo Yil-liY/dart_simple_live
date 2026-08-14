@@ -22,6 +22,7 @@ import 'package:simple_live_app/models/db/history.dart';
 import 'package:simple_live_app/modules/live_room/player/player_controller.dart';
 import 'package:simple_live_app/modules/settings/danmu_settings_page.dart';
 import 'package:simple_live_app/services/db_service.dart';
+import 'package:simple_live_app/services/emoji_image_cache.dart';
 import 'package:simple_live_app/services/follow_service.dart';
 import 'package:simple_live_app/services/history_service.dart';
 import 'package:simple_live_app/src/rust/api/danmaku_mask.dart';
@@ -131,6 +132,8 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
     scrollController.addListener(scrollListener);
 
     _initDanmakuMask();
+    // 预热表情映射，使首个含表情的弹幕即可同步出图
+    EmojiImageCache.instance.init();
     super.onInit();
   }
 
@@ -197,6 +200,7 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
       addDanmaku(filteredBatch
           .map((msg) => DanmakuContentItem(
                 msg.message,
+                emojis: EmojiImageCache.instance.resolveSync(msg.message),
                 color: Color.fromARGB(
                   255,
                   msg.color.r,
@@ -330,6 +334,7 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
         addDanmaku([
           DanmakuContentItem(
             msg.message,
+            emojis: EmojiImageCache.instance.resolveSync(msg.message),
             color: Color.fromARGB(
               255,
               msg.color.r,
@@ -1122,6 +1127,8 @@ ${error?.stackTrace}''');
     liveDanmaku.stop();
     danmakuController = null;
     rustDanmakuMask.dispose();
+    // 退出直播间：释放表情图片缓存
+    EmojiImageCache.instance.disposeAll();
     super.onClose();
   }
 }
