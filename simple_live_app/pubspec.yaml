@@ -167,3 +167,5 @@ flutter:
     - assets/lotties/
     - assets/fonts/fonts-manifest.json
     - shorebird.yaml
+    - assets/douyin_emoji/emoji_map.json
+    - assets/douyin_emoji/static/
