@@ -263,36 +263,31 @@ class DouyinSite implements LiveSite {
     var webRid = reg.firstMatch(response)?.group(1) ?? "";
     return webRid.isEmpty ? roomId : webRid;
   }
-    Future<LiveRoomDetail> getRoomDetail({required String roomId}) async {
-    // 有两种roomId，一种是webRid，一种是roomId
-    // roomId是一次性的，用户每次重新开播都会生成一个新的roomId
-    // roomId一般长度为19位，例如：7376429659866598196
-    // webRid是固定的，用户每次开播都是同一个webRid
-    // webRid一般长度为11-12位，例如：416144012050
-    // 【画质修复】无论传入的是19位roomId还是11-12位webRid，都统一优先走
-    // 客户端接口 reflow/info（可拿到 uhd / origin 真原画 HEVC 全档）。
-    //  - 若传入19位roomId：直接用
-    //  - 若传入11-12位webRid：先反查出19位roomId，再走客户端接口
+    
+  /// 通过 webRid 反查 19 位 roomId（客户端接口 reflow/info 需要 19 位 roomId）
+  /// 网页API优先，失败回退HTML解析
+  Future<String> _webRidToRoomId(String webRid) async {
+    // 优先用网页 API（data[0].id_str 即 19 位 roomId）
     try {
-      var clientRoomId = roomId;
-      if (roomId.length <= 16) {
-        // webRid -> roomId 反查（网页API优先，失败回退HTML）
-        clientRoomId = await _webRidToRoomId(roomId);
-      }
-      if (clientRoomId.isNotEmpty) {
-        var clientDetail = await getRoomDetailByRoomId(clientRoomId);
-        if (clientDetail.status) {
-          return clientDetail;
-        }
+      var data = await _getRoomDataByApi(webRid);
+      var idStr = data["data"][0]["id_str"].toString();
+      if (idStr.isNotEmpty && idStr.length > 16) {
+        return idStr;
       }
     } catch (e) {
-      CoreLog.w('客户端接口获取失败，回退网页接口: $e');
+      CoreLog.w('网页API反查roomId失败，尝试HTML: $e');
     }
-    var webRid = roomId;
-    if (roomId.length > 16) {
-      webRid = await _getWebRid(roomId);
+    // 回退用 HTML（roomStore.roomInfo.room.id_str）
+    try {
+      var data = await _getRoomDataByHtml(webRid);
+      var idStr = data["roomStore"]["roomInfo"]["room"]["id_str"].toString();
+      if (idStr.isNotEmpty && idStr.length > 16) {
+        return idStr;
+      }
+    } catch (e) {
+      CoreLog.w('HTML反查roomId失败: $e');
     }
-    return await getRoomDetailByWebRid(webRid);
+    return "";
   }
 
   /// 通过roomId获取直播间信息
