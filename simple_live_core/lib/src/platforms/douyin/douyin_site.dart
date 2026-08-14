@@ -220,24 +220,33 @@ class DouyinSite implements LiveSite {
   }
 
   @override
-  Future<LiveRoomDetail> getRoomDetail({required String roomId}) async {
+    Future<LiveRoomDetail> getRoomDetail({required String roomId}) async {
     // 有两种roomId，一种是webRid，一种是roomId
     // roomId是一次性的，用户每次重新开播都会生成一个新的roomId
     // roomId一般长度为19位，例如：7376429659866598196
     // webRid是固定的，用户每次开播都是同一个webRid
     // webRid一般长度为11-12位，例如：416144012050
-    // 这里简单进行判断，如果roomId长度小于15，则认为是webRid
-   var webRid = roomId;
-    if (roomId.length > 16) {
-      // 【画质修复】优先走客户端接口 reflow/info，可拿到 uhd / origin（真原画 HEVC）全档
-      try {
-        var clientDetail = await getRoomDetailByRoomId(roomId);
+    // 【画质修复】无论传入的是19位roomId还是11-12位webRid，都统一优先走
+    // 客户端接口 reflow/info（可拿到 uhd / origin 真原画 HEVC 全档）。
+    //  - 若传入19位roomId：直接用
+    //  - 若传入11-12位webRid：先反查出19位roomId，再走客户端接口
+    try {
+      var clientRoomId = roomId;
+      if (roomId.length <= 16) {
+        // webRid -> roomId 反查（网页API优先，失败回退HTML）
+        clientRoomId = await _webRidToRoomId(roomId);
+      }
+      if (clientRoomId.isNotEmpty) {
+        var clientDetail = await getRoomDetailByRoomId(clientRoomId);
         if (clientDetail.status) {
           return clientDetail;
         }
-      } catch (e) {
-        CoreLog.w('客户端接口获取失败，回退网页接口: $e');
       }
+    } catch (e) {
+      CoreLog.w('客户端接口获取失败，回退网页接口: $e');
+    }
+    var webRid = roomId;
+    if (roomId.length > 16) {
       webRid = await _getWebRid(roomId);
     }
     return await getRoomDetailByWebRid(webRid);
@@ -253,6 +262,37 @@ class DouyinSite implements LiveSite {
     );
     var webRid = reg.firstMatch(response)?.group(1) ?? "";
     return webRid.isEmpty ? roomId : webRid;
+  }
+    Future<LiveRoomDetail> getRoomDetail({required String roomId}) async {
+    // 有两种roomId，一种是webRid，一种是roomId
+    // roomId是一次性的，用户每次重新开播都会生成一个新的roomId
+    // roomId一般长度为19位，例如：7376429659866598196
+    // webRid是固定的，用户每次开播都是同一个webRid
+    // webRid一般长度为11-12位，例如：416144012050
+    // 【画质修复】无论传入的是19位roomId还是11-12位webRid，都统一优先走
+    // 客户端接口 reflow/info（可拿到 uhd / origin 真原画 HEVC 全档）。
+    //  - 若传入19位roomId：直接用
+    //  - 若传入11-12位webRid：先反查出19位roomId，再走客户端接口
+    try {
+      var clientRoomId = roomId;
+      if (roomId.length <= 16) {
+        // webRid -> roomId 反查（网页API优先，失败回退HTML）
+        clientRoomId = await _webRidToRoomId(roomId);
+      }
+      if (clientRoomId.isNotEmpty) {
+        var clientDetail = await getRoomDetailByRoomId(clientRoomId);
+        if (clientDetail.status) {
+          return clientDetail;
+        }
+      }
+    } catch (e) {
+      CoreLog.w('客户端接口获取失败，回退网页接口: $e');
+    }
+    var webRid = roomId;
+    if (roomId.length > 16) {
+      webRid = await _getWebRid(roomId);
+    }
+    return await getRoomDetailByWebRid(webRid);
   }
 
   /// 通过roomId获取直播间信息
