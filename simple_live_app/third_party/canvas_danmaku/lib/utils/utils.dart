@@ -77,7 +77,7 @@ abstract final class DmUtils {
         ..addPlaceholder(
           emojiSize * aspect,
           emojiSize,
-          alignment: PlaceholderAlignment.middle,
+          ui.PlaceholderAlignment.middle,
         )
         ..pop();
       idx++;
@@ -122,7 +122,7 @@ abstract final class DmUtils {
       emojis,
       ui.TextStyle(
           color: content.color, fontSize: fontSize, fontFamily: fontFamily),
-      const ui.TextStyle(),
+      ui.TextStyle(),
       emojiSize: fontSize,
     );
 
