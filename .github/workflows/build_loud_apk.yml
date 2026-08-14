@@ -1,8 +1,6 @@
 name: build-loud-apk
-
 on:
   workflow_dispatch:          # 手动触发
-
 jobs:
   build-android:
     runs-on: ubuntu-latest
@@ -11,7 +9,6 @@ jobs:
     steps:
       # 1. 签出代码（完整仓库，含 rust 源码，zip 会缺这些，必须用 checkout）
       - uses: actions/checkout@v6
-
       # 2. 设置 JAVA 17
       - uses: actions/setup-java@v5
         with:
@@ -21,7 +18,6 @@ jobs:
           cache-dependency-path: |
             simple_live_app/android/*.gradle*
             simple_live_app/android/**/gradle-wrapper.properties
-
       # 3. 设置 Flutter（版本取自 pubspec.yaml）
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -29,43 +25,32 @@ jobs:
           channel: stable
           flutter-version-file: simple_live_app/pubspec.yaml
           cache: true
-
-      # 4a. 先显式生成 Android 调试密钥库(debug.keystore)，
-      #     防止云端未自动生成导致 assembleRelease 找不到签名文件
-      - name: Generate debug.keystore
+      # 4a. 还原固定签名 keystore：把 BASE64 解码成 .jks 文件
+      - name: Restore release keystore
         run: |
           mkdir -p "$HOME/.android"
-          # 若已存在则跳过，避免 keytool 再次生成报错
-          if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkey -v -keystore "$HOME/.android/debug.keystore" \
-              -storepass android -alias androiddebugkey -keypass android \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-
-      # 4b. 生成签名配置：把 debug.keystore 信息写入 key.properties（无需配置 secrets）
-      - name: Create key.properties (debug sign)
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$HOME/.android/release.jks"
+          ls -la "$HOME/.android/release.jks"
+      # 4b. 生成 key.properties，引用 4 个 Secret 做固定签名
+      - name: Create key.properties (release sign)
         run: |
-          echo "storeFile=$HOME/.android/debug.keystore" > simple_live_app/android/key.properties
-          echo "storePassword=android" >> simple_live_app/android/key.properties
-          echo "keyPassword=android" >> simple_live_app/android/key.properties
-          echo "keyAlias=androiddebugkey" >> simple_live_app/android/key.properties
-
+          echo "storeFile=$HOME/.android/release.jks" > simple_live_app/android/key.properties
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> simple_live_app/android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> simple_live_app/android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> simple_live_app/android/key.properties
       # 5. 还原依赖
       - name: Restore packages
         run: |
           cd simple_live_app
           flutter pub get
-
       # 6. 编译 APK（arm64 = 现代手机通用架构，最关键的一个）
       - name: Build APK
         run: |
           cd simple_live_app
           flutter build apk --release --target-platform android-arm64
-
       # 7. 上传产物（Actions 页面下载）
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: slive-loud-apk
-          path: simple_live_app/build/app/outputs/flutter-apk/app-release.apk
+          path: simple_live_app/build/app/outputs/flutter-apk/*.apk
