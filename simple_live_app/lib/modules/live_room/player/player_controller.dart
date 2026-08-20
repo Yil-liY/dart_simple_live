@@ -52,12 +52,14 @@ mixin PlayerMixin {
       await pp.setProperty('ao', 'alsa');
     }
     // media_kit 仓库更新导致的问题，临时解决办法
-       if (Platform.isAndroid) {
+    if (Platform.isAndroid) {
       // 通过错误参数强制media_kit不seek, 解决了加载-pause-seek 在直播流上的开屏问题
       await pp.setProperty('force-seekable', 'yes');
       // ── 响度增强（自编译定制）：让 Slive 自带基础增益，效果接近抖音/B站等APP ──
-await pp.setProperty('volume-gain', '6');    // +6dB 内置增益，觉得小可改 9
-await pp.setProperty('volume-max', '130');   // 放开 mpv 软音量上限
+      // volume-gain : 播放器内部固定增益(dB)，不抬系统媒体音量 → 切软件不会爆音
+      // volume-max  : 放开 mpv 软音量上限(默认130)，给滑条/手势更多响度余量
+      await pp.setProperty('volume-gain', 6);      // 6dB，感觉偏小可改 9
+      await pp.setProperty('volume-max', 130);     // 软音量上限放开
     }
     // 低内存管理
     //
@@ -172,6 +174,12 @@ mixin PlayerStateMixin on PlayerMixin {
   void hideControls() {
     showControlsState.value = false;
     hideControlsTimer?.cancel();
+    // 横屏全屏时，隐藏控件同步隐藏状态栏
+    if (fullScreenState.value &&
+        !isVertical.value &&
+        (Platform.isAndroid || Platform.isIOS)) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+    }
   }
 
   void setLockState() {
@@ -187,6 +195,13 @@ mixin PlayerStateMixin on PlayerMixin {
   void showControls() {
     showControlsState.value = true;
     resetHideControlsTimer();
+    // 横屏全屏时，唤醒控件同步显示状态栏
+    if (fullScreenState.value &&
+        !isVertical.value &&
+        (Platform.isAndroid || Platform.isIOS)) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+          overlays: [SystemUiOverlay.top]);
+    }
   }
 
   /// 开始隐藏控制器计时
