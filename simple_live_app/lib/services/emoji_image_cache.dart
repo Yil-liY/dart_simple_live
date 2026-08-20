@@ -38,10 +38,18 @@ class EmojiImageCache {
   // uri → 正在解码中的 Future（防止并发重复解码同一图）
   final Map<String, Future<ui.Image?>> _inflight = {};
 
-  /// 预热：仅加载 emoji_map.json 映射（不常驻消耗，仅为同步查询做准备）。
-  /// 在进入直播间等时机调用一次即可。
+  /// 预热：加载 emoji_map.json 映射，并一次性预解码全部静态表情 PNG。
+  ///
+  /// 这样进入直播间后，任何弹幕里出现的表情第一次即可命中缓存同步出图，
+  /// 不必等第二次出现才显示。字符多在几 MB ~ 十几 MB 量级，解码耗时集中在
+  /// 进入直播间时（后台执行），不阻塞主线程交互。
   Future<void> init() async {
-    await _ensureMeta();
+    final metas = await _ensureMeta();
+    final allUris = <String>{};
+    for (final m in metas.values) {
+      allUris.add(m.uri);
+    }
+    await _preloadUris(allUris);
   }
 
   /// 释放缓存（退出直播间时调用，避免内存占用）。返回被释放的图片总数。
@@ -175,8 +183,9 @@ class EmojiImageCache {
   }
 
   Future<void> _preloadUris(Set<String> uris) async {
-    for (final uri in uris) {
-      if (_pool.containsKey(uri) || _inflight.containsKey(uri)) continue;
+    // 并发预解码，避免串行拖慢全量表情就绪时间
+    await Future.wait(uris.map((uri) async {
+      if (_pool.containsKey(uri) || _inflight.containsKey(uri)) return;
       final fut = _inflight[uri] ??= _decode(uri);
       try {
         final img = await fut;
@@ -184,7 +193,7 @@ class EmojiImageCache {
       } finally {
         _inflight.remove(uri);
       }
-    }
+    }));
   }
 
   Future<ui.Image?> _decode(String uri) async {

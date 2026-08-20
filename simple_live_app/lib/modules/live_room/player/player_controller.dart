@@ -58,8 +58,8 @@ mixin PlayerMixin {
       // ── 响度增强（自编译定制）：让 Slive 自带基础增益，效果接近抖音/B站等APP ──
       // volume-gain : 播放器内部固定增益(dB)，不抬系统媒体音量 → 切软件不会爆音
       // volume-max  : 放开 mpv 软音量上限(默认130)，给滑条/手势更多响度余量
-      await pp.setProperty('volume-gain', 6);      // 6dB，感觉偏小可改 9
-      await pp.setProperty('volume-max', 130);     // 软音量上限放开
+      await pp.setProperty('volume-gain', '6');      // 6dB，感觉偏小可改 9
+      await pp.setProperty('volume-max', '130');     // 软音量上限放开
     }
     // 低内存管理
     //
