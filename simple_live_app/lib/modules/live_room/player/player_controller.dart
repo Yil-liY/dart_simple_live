@@ -174,9 +174,8 @@ mixin PlayerStateMixin on PlayerMixin {
   void hideControls() {
     showControlsState.value = false;
     hideControlsTimer?.cancel();
-    // 横屏全屏时，隐藏控件同步隐藏状态栏
+    // 全屏时（横屏或竖屏），隐藏控件同步隐藏状态栏
     if (fullScreenState.value &&
-        !isVertical.value &&
         (Platform.isAndroid || Platform.isIOS)) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
     }
@@ -195,9 +194,8 @@ mixin PlayerStateMixin on PlayerMixin {
   void showControls() {
     showControlsState.value = true;
     resetHideControlsTimer();
-    // 横屏全屏时，唤醒控件同步显示状态栏
+    // 全屏时（横屏或竖屏），唤醒控件同步显示状态栏
     if (fullScreenState.value &&
-        !isVertical.value &&
         (Platform.isAndroid || Platform.isIOS)) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
           overlays: [SystemUiOverlay.top]);

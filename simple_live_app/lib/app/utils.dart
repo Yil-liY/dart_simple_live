@@ -450,9 +450,7 @@ class Utils {
   }
 
   static String onlineToString(int num) {
-    if (num >= 10000) {
-      return "${(num / 10000.0).toStringAsFixed(1)}万";
-    }
+    // 直接显示完整真实人数，不简化成“万”
     return num.toString();
   }
 

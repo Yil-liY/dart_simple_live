@@ -31,16 +31,13 @@ abstract final class DmUtils {
   /// 弹幕文本中的表情占位符，如 `[戴口罩]`（中文 display_name）
   static final RegExp _emojiPhRe = RegExp(r'\[[^\[\]]{1,20}\]');
 
-  /// 过滤出与 text 中占位符严格一一对应的有效表情列表。
-  /// 仅当 text 里占位符数量恰好等于 emojis 数量时才启用表情嵌入，
-  /// 否则（存在无法匹配的表情）退回纯文本渲染，避免错位。
+  /// 返回可用的表情列表（按需使用）。
+  /// 不再要求占位符数量与 emojis 严格相等：能否解析出几个就嵌入几个，
+  /// 无法解析的占位符由 [_appendSegments] 按普通文本保留，避免显示 `[xx]`。
   static List<DanmakuEmojiPlaceholder> _effectiveEmojis(
       DanmakuContentItem content) {
     final emojis = content.emojis;
     if (emojis == null || emojis.isEmpty) return const [];
-    if (_emojiPhRe.allMatches(content.text).length != emojis.length) {
-      return const [];
-    }
     return emojis;
   }
 
@@ -60,28 +57,48 @@ abstract final class DmUtils {
       builder..pushStyle(textStyle)..addText(text);
       return 0;
     }
+    // 按占位符在文本中的位置匹配表情：能匹配到就嵌入，匹配不到的保留为普通文本
     builder.pushStyle(textStyle);
-    var idx = 0;
+    // 建立 位置->表情 索引（优先精确位置，回退到顺序匹配）
+    final byPos = <int, DanmakuEmojiPlaceholder>{};
+    for (final e in emojis) {
+      if (e.start >= 0 && !byPos.containsKey(e.start)) byPos[e.start] = e;
+    }
     var last = 0;
     var count = 0;
+    var orderIdx = 0;
     for (final m in _emojiPhRe.allMatches(text)) {
       if (m.start > last) {
         builder.addText(text.substring(last, m.start));
       }
-      final emoji = emojis[idx];
-      final srcW = emoji.image.width.toDouble();
-      final srcH = emoji.image.height.toDouble();
-      final aspect = (srcH <= 0) ? 1.0 : srcW / srcH;
-      builder
-        ..pushStyle(emojiStyle)
-        ..addPlaceholder(
-          emojiSize * aspect,
-          emojiSize,
-          ui.PlaceholderAlignment.middle,
-        )
-        ..pop();
-      idx++;
-      count++;
+      DanmakuEmojiPlaceholder? emoji = byPos[m.start];
+      if (emoji == null) {
+        // 位置未命中时顺序回退到下一个未使用的表情（兼容旧的按序数据）
+        while (orderIdx < emojis.length) {
+          final cand = emojis[orderIdx++];
+          if (!byPos.containsKey(cand.start) || byPos[cand.start] == cand) {
+            emoji = cand;
+            break;
+          }
+        }
+      }
+      if (emoji != null) {
+        final srcW = emoji.image.width.toDouble();
+        final srcH = emoji.image.height.toDouble();
+        final aspect = (srcH <= 0) ? 1.0 : srcW / srcH;
+        builder
+          ..pushStyle(emojiStyle)
+          ..addPlaceholder(
+            emojiSize * aspect,
+            emojiSize,
+            ui.PlaceholderAlignment.middle,
+          )
+          ..pop();
+        count++;
+      } else {
+        // 无法解析：占位符整体按普通文本保留，避免显示 `[]`
+        builder.addText(text.substring(m.start, m.end));
+      }
       last = m.end;
     }
     if (last < text.length) {

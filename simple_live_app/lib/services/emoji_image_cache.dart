@@ -140,7 +140,9 @@ class EmojiImageCache {
 
     final result = <DanmakuEmojiPlaceholder>[];
     final missingUris = <String>{};
-    for (final name in names) {
+    final matches = _phRe.allMatches(text).toList();
+    for (var i = 0; i < names.length; i++) {
+      final name = names[i];
       final meta = metas[name];
       if (meta == null) continue; // 未知占位符，跳过
       final img = _pool[meta.uri];
@@ -153,6 +155,8 @@ class EmojiImageCache {
           image: img,
           targetWidth: meta.w.toDouble(),
           targetHeight: meta.h.toDouble(),
+          start: (i < matches.length) ? matches[i].start : -1,
+          end: (i < matches.length) ? matches[i].end : -1,
         ));
       }
     }
@@ -162,8 +166,7 @@ class EmojiImageCache {
       unawaited(_preloadUris(missingUris));
     }
 
-    // 只要有缺漏，就整体回退纯文本，避免与 text 中占位符数量错位导致渲染错乱
-    if (result.length != names.length) return null;
+    // 能解析的表情正常返回；无法解析/未解码的占位符由渲染层按普通文本保留，不再整体回退
     return result;
   }
 
