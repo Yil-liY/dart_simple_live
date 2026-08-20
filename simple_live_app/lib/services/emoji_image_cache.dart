@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/widgets.dart';
 
 /// 抖音弹幕表情解码缓存管理器。
 ///
@@ -53,6 +54,60 @@ class EmojiImageCache {
     _pool.clear();
     _inflight.clear();
     return n;
+  }
+
+  /// 供聊天列表（非 canvas，纯 widget）使用的富文本 spans。
+  ///
+  /// 将 [text] 中的 `[表情名]` 占位符替换为行内图片（[WidgetSpan]），
+  /// 其余文字普通 [TextSpan]。用于直播间右侧的聊天消息列表。
+  /// [style] 应用于普通文本段落；[emojiHeight] 为表情显示高度（按比例缩放宽度）。
+  ///
+  /// 若映射尚未加载，暂以纯文本返回，并后台预热，供后续重建命中。
+  List<InlineSpan> widgetSpans(
+    String text,
+    TextStyle style, {
+    double emojiHeight = 18,
+    double spacing = 1,
+  }) {
+    final metas = _meta;
+    final names = placeholderNames(text);
+    if (metas == null || names.isEmpty) {
+      if (metas == null) unawaited(_warmUp(text));
+      return [TextSpan(text: text, style: style)];
+    }
+    final spans = <InlineSpan>[];
+    var last = 0;
+    for (final m in _phRe.allMatches(text)) {
+      if (m.start > last) {
+        spans.add(TextSpan(text: text.substring(last, m.start), style: style));
+      }
+      final name = m.group(0)!;
+      final meta = metas[name];
+      if (meta == null) {
+        // 未知占位符：按纯文本保留
+        spans.add(TextSpan(text: name, style: style));
+      } else {
+        final aspect = (meta.h <= 0) ? 1.0 : meta.w / meta.h;
+        final w = emojiHeight * aspect;
+        spans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: spacing / 2),
+            child: Image.asset(
+              '$staticPrefix${meta.uri}',
+              width: w,
+              height: emojiHeight,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ));
+      }
+      last = m.end;
+    }
+    if (last < text.length) {
+      spans.add(TextSpan(text: text.substring(last), style: style));
+    }
+    return spans;
   }
 
   /// 扫描 [text]，返回其中的表情占位符 display_name 列表（含方括号，按出现顺序）。
