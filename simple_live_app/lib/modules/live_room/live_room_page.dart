@@ -13,6 +13,7 @@ import 'package:simple_live_app/app/utils.dart';
 import 'package:simple_live_app/modules/live_room/live_room_controller.dart';
 import 'package:simple_live_app/modules/live_room/player/player_controls.dart';
 import 'package:simple_live_app/services/follow_service.dart';
+import 'package:simple_live_app/services/emoji_image_cache.dart';
 import 'package:simple_live_app/widgets/desktop_refresh_button.dart';
 import 'package:simple_live_app/widgets/follow_user_item.dart';
 import 'package:simple_live_app/widgets/keep_alive_wrapper.dart';
@@ -519,16 +520,43 @@ class LiveRoomPage extends GetView<LiveRoomController> {
   Widget buildMessageItem(LiveMessage message) {
     if (message.userName == "LiveSysMessage") {
       return Obx(
-        () => SelectableText(
-          message.message,
-          style: TextStyle(
-            color: Colors.grey,
-            fontSize: AppSettingsController.instance.chatTextSize.value,
+        () => Text.rich(
+          TextSpan(
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: AppSettingsController.instance.chatTextSize.value,
+            ),
+            children: EmojiImageCache.instance.widgetSpans(
+              message.message,
+              TextStyle(
+                color: Colors.grey,
+                fontSize: AppSettingsController.instance.chatTextSize.value,
+              ),
+              emojiHeight:
+                  AppSettingsController.instance.chatTextSize.value,
+            ),
           ),
         ),
       );
     }
-
+    final nameStyle = TextStyle(
+      color: Colors.grey,
+      fontSize: AppSettingsController.instance.chatTextSize.value,
+    );
+    final msgStyle = TextStyle(
+      color: Get.isDarkMode ? Colors.white : AppColors.black333,
+      fontSize: AppSettingsController.instance.chatTextSize.value,
+    );
+    final msgSpans = EmojiImageCache.instance.widgetSpans(
+      message.message,
+      msgStyle,
+      emojiHeight: AppSettingsController.instance.chatTextSize.value,
+    );
+    final rich = TextSpan(
+      text: "${message.userName}：",
+      style: nameStyle,
+      children: msgSpans,
+    );
     return Obx(
       () => AppSettingsController.instance.chatBubbleStyle.value
           ? Row(
@@ -548,47 +576,12 @@ class LiveRoomPage extends GetView<LiveRoomController> {
                     ),
                     padding:
                         AppStyle.edgeInsetsA4.copyWith(left: 12, right: 12),
-                    child: SelectableText.rich(
-                      TextSpan(
-                        text: "${message.userName}：",
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize:
-                              AppSettingsController.instance.chatTextSize.value,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: message.message,
-                            style: TextStyle(
-                              color: Get.isDarkMode
-                                  ? Colors.white
-                                  : AppColors.black333,
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
+                    child: Text.rich(rich),
                   ),
                 ),
               ],
             )
-          : SelectableText.rich(
-              TextSpan(
-                text: "${message.userName}：",
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: AppSettingsController.instance.chatTextSize.value,
-                ),
-                children: [
-                  TextSpan(
-                    text: message.message,
-                    style: TextStyle(
-                      color: Get.isDarkMode ? Colors.white : AppColors.black333,
-                    ),
-                  )
-                ],
-              ),
-            ),
+          : Text.rich(rich),
     );
   }
 

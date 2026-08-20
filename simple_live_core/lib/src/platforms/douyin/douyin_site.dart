@@ -29,18 +29,28 @@ class DouyinSite implements LiveSite {
     "User-Agent": DouyinRequestParams.kDefaultUserAgent,
   };
   /// 解析在线人数（热度）。
-  /// 优先取 room_view_stats.count（抖音返回的纯数字人数）；
-  /// 若不存在 count，才回退解析展示用的 display_value（如 "1.2万"、"10000+"、"3.4w"）。
-  int _parseOnline(dynamic rvs) {
-    if (rvs == null) return 0;
-    Map rvsMap = (rvs is Map) ? rvs : {};
-    // 优先：纯数字字段
-    var cnt = rvsMap['count'];
+  /// 传入房间对象：优先取 user_count（实时在线人数，最准确）；
+  /// 回退取嵌套 room_view_stats.display_value（非数字展示字符串，如 "1.2万"）。
+  /// 兼容历史调用：若直接传入 room_view_stats 对象，则从其中取 display_value。
+  int _parseOnline(dynamic room) {
+    if (room == null) return 0;
+    Map m = (room is Map) ? room : {};
+    // 优先：实时在线人数 user_count（位于房间对象顶层，非累计人气）
+    var usercnt = m['user_count'];
+    if (usercnt != null) {
+      var u = int.tryParse(usercnt.toString());
+      if (u != null && u >= 0) return u;
+    }
+    // 次优先：pure number 字段（兼容）：
+    var cnt = m['count'];
     if (cnt != null) {
       var c = int.tryParse(cnt.toString());
       if (c != null && c >= 0) return c;
     }
-    // 回退：解析格式化展示字符串
+    // 取 room_view_stats 子对象（兼容两种入参形态）：
+    var rvs = m['room_view_stats'] ?? m;
+    Map rvsMap = (rvs is Map) ? rvs : {};
+    // 回退：解析格式化展示字符串 display_value
     var dv = rvsMap['display_value']?.toString() ?? '';
     if (dv.isEmpty) return 0;
     var cleaned = dv
@@ -201,7 +211,7 @@ class DouyinSite implements LiveSite {
         title: item["room"]["title"].toString(),
         cover: item["room"]["cover"]["url_list"][0].toString(),
         userName: item["room"]["owner"]["nickname"].toString(),
-        online: _parseOnline(item["room"]["room_view_stats"]),
+        online: _parseOnline(item["room"]),
       );
       items.add(roomItem);
     }
@@ -233,7 +243,7 @@ class DouyinSite implements LiveSite {
         title: item["title"].toString(),
         cover: item["cover"]["url_list"][0].toString(),
         userName: item["owner"]["nickname"].toString(),
-        online: _parseOnline(item["room_view_stats"]),
+        online: _parseOnline(item),
       );
       items.add(roomItem);
     }
@@ -348,7 +358,7 @@ class DouyinSite implements LiveSite {
       cover: roomStatus ? room["cover"]["url_list"][0].toString() : "",
       userName: owner["nickname"].toString(),
       userAvatar: owner["avatar_thumb"]["url_list"][0].toString(),
-      online: roomStatus ? _parseOnline(room["room_view_stats"]) : 0,
+      online: roomStatus ? _parseOnline(room) : 0,
       status: roomStatus,
       url: "https://live.douyin.com/$webRid",
       introduction: owner["signature"].toString(),
@@ -407,7 +417,7 @@ class DouyinSite implements LiveSite {
       userAvatar: roomStatus
           ? owner["avatar_thumb"]["url_list"][0].toString()
           : userData["avatar_thumb"]["url_list"][0].toString(),
-      online: roomStatus ? _parseOnline(roomData["room_view_stats"]) : 0,
+      online: roomStatus ? _parseOnline(roomData) : 0,
       status: roomStatus,
       url: "https://live.douyin.com/$webRid",
       introduction: owner?["signature"]?.toString() ?? "",
@@ -449,7 +459,7 @@ class DouyinSite implements LiveSite {
       userAvatar: roomStatus
           ? owner["avatar_thumb"]["url_list"][0].toString()
           : anchor["avatar_thumb"]["url_list"][0].toString(),
-      online: roomStatus ? _parseOnline(room["room_view_stats"]) : 0,
+      online: roomStatus ? _parseOnline(room) : 0,
       status: roomStatus,
       url: "https://live.douyin.com/$webRid",
       introduction: owner?["signature"]?.toString() ?? "",
