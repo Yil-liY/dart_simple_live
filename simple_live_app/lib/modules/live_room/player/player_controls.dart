@@ -121,6 +121,7 @@ Widget buildFullControls(
               padding: EdgeInsets.only(
                 left: padding.left + 12,
                 right: padding.right + 12,
+                top: padding.top,
               ),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -132,9 +133,7 @@ Widget buildFullControls(
                   ],
                 ),
               ),
-              child: SafeArea(
-                bottom: false,
-                child: Row(
+              child: Row(
                 children: [
                   IconButton(
                     onPressed: () {
@@ -204,7 +203,6 @@ Widget buildFullControls(
                     ),
                   ),
                 ],
-              ),
               ),
             ),
           ),

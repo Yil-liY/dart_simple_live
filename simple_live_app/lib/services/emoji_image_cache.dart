@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
+import 'package:get/get.dart';
 
 /// 抖音弹幕表情解码缓存管理器。
 ///
@@ -31,6 +32,11 @@ class EmojiImageCache {
 
   // display_name → (uri, w, h)
   Map<String, ({String uri, int w, int h})>? _meta;
+  /// 表情映射是否已就绪（加载 emoji_map.json 完成）。
+  ///
+  /// 聊天列表等纯 widget 渲染通过 Obx 依赖此信号，
+  /// 从而在映射加载完成后自动重建已显示为 `[表情名]` 文本的消息。
+  final RxBool emojiMetaReady = false.obs;
 
   // uri → 已解码的 ui.Image（缓存复用）
   final Map<String, ui.Image> _pool = {};
@@ -77,6 +83,11 @@ class EmojiImageCache {
     double emojiHeight = 18,
     double spacing = 1,
   }) {
+    // 读取就绪信号以在 Obx 中注册依赖：
+    // 当映射从 null 变为就绪时，触发包含此 span 的聊天区 Obx 自动重建，
+    // 使此前仅显示为 [表情名] 的文本重新渲染为行内图片。
+    // ignore: unused_result
+    emojiMetaReady.value;
     final metas = _meta;
     final names = placeholderNames(text);
     if (metas == null || names.isEmpty) {
@@ -228,6 +239,8 @@ class EmojiImageCache {
       );
     });
     _meta = map;
+    // 通知依赖此项的聊天区 Obx 重建（此前因映射未就绪而显示为 [表情名] 的消息）
+    if (!emojiMetaReady.value) emojiMetaReady.value = true;
     return map;
   }
 }

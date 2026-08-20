@@ -17,17 +17,12 @@ class DanmakuEmojiPlaceholder {
   final ui.Image image;
   final double targetWidth;
   final double targetHeight;
-  /// [start]/[end] 为占位符在弹幕文本中的起止下标；无法解析的占位符会跳过。
-  final int start;
-  final int end;
   const DanmakuEmojiPlaceholder({
     required this.name,
     required this.uri,
     required this.image,
     required this.targetWidth,
     required this.targetHeight,
-    this.start = -1,
-    this.end = -1,
   });
 }
 
